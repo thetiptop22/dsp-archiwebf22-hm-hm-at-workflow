@@ -1,13 +1,9 @@
 version: '3.8'
 services:
   node:
-    image: node:14.15.4
+    build: 
+      dockerfile: dsp-archiwebf22-hm-hm-at-workflow/containers/ci-cd/Dockerfile
+      context: ../
     container_name: node
-    volumes:
-      - ./images/node:/app
-    working_dir: /app
     ports:
-      - 3000:3000
-    command: npm run dev
-    networks:
-      - backend
+      - 3000:3000 
