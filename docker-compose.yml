@@ -4,6 +4,9 @@ services:
     build: 
       dockerfile: dsp-archiwebf22-hm-hm-at-workflow/containers/ci-cd/Dockerfile
       context: ../
-    container_name: node
+    # working_dir: /workflow/current
+    container_name: app
     ports:
-      - 3000:3000 
+      - 80:80 
+      - 443:443
+    restart: always

@@ -1,7 +1,7 @@
-FROM node:16.13.0 AS node
-WORKDIR /app
-COPY dsp-archiwebf22-hm-hm-at-app /app
-RUN npm i
-ENTRYPOINT [ "npm" ]
-CMD [ "run", "watch" ]
+FROM node:16.13.0 
+RUN npm install pm2 -g
+RUN console.log("hello world")
+ENTRYPOINT [ "pm2-runtime" ]
+CMD [ "index.js"]
+
 
