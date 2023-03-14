@@ -62,4 +62,25 @@ networks:
   web:
     external: true
 
-    
+sonarqube :
+    image :  sonarqube:latest
+    container_name :  sonarqube
+    restart :  always
+    ports : 
+      -  9000:9000
+    volumes :
+      -  ./sonarqube/conf:/opt/sonarqube/conf
+      -  ./sonarqube/data:/opt/sonarqube/data
+      -  ./sonarqube/extensions:/opt/sonarqube/extensions
+      -  ./sonarqube/logs:/opt/sonarqube/logs
+      -  ./sonarqube/temp:/opt/sonarqube/temp
+    labels : 
+      -  "traefik.enable=true"
+      -  "traefik.http.routers.sonarqube.rule=Host(`localhost:6001`)"
+      -  "traefik.http.routers.sonarqube.entrypoints=websecure"
+      -  "traefik.http.routers.sonarqube.tls=true"
+      -  "traefik.http.routers.sonarqube.tls.certresolver=le"
+      -  "traefik.http.routers.sonarqube.service=sonarqube"
+      -  "traefik.http.services.sonarqube.loadbalancer.server.port=9000"
+    networks :
+      -  traefik
