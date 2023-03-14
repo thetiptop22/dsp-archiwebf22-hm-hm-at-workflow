@@ -1,0 +1,109 @@
+version: '3.7'
+
+  services : 
+    grafana :
+      image :  grafana/grafana:latest
+      container_name :  grafana
+      restart :  always
+      ports : 
+        -  3000:3000
+      volumes :
+        -  ./grafana:/var/lib/grafana
+        -  ./grafana/provisioning:/etc/grafana/provisioning
+        -  ./grafana/dashboards:/var/lib/grafana/dashboards
+        -  ./grafana/plugins:/var/lib/grafana/plugins
+        -  ./grafana/logs:/var/lib/grafana/logs
+        -  ./grafana/data:/var/lib/grafana/data
+      user : root
+      labels : 
+        -  "traefik.enable=true"
+        -  "traefik.http.routers.grafana.rule=Host(`localhost:6000`)"
+        -  "traefik.http.routers.grafana.entrypoints=websecure"
+        -  "traefik.http.routers.grafana.tls=true"
+        -  "traefik.http.routers.grafana.tls.certresolver=le"
+        -  "traefik.http.routers.grafana.service=grafana"
+        -  "traefik.http.services.grafana.loadbalancer.server.port=3000"
+
+
+    traefik:
+      image: traefik:v2.5
+      container_name: traefik
+      ports:
+        - "80:80"
+        - "443:443"
+      volumes:
+        - /var/run/docker.sock:/var/run/docker.sock:ro
+        - ./traefik.yml:/traefik.yml:ro
+        - ./certs:/certs
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.traefik.rule=Host(`localhost:6000`)"
+        - "traefik.http.routers.traefik.entrypoints=http,https"
+        - "traefik.http.routers.traefik.tls.certresolver=myresolver"
+        - "traefik.http.middlewares.traefik-auth.basicauth.users=admin:$$apr1$$pw1$SOMEHASH"
+        - "traefik.http.middlewares.traefik-auth.basicauth.removeheader=true"
+        - "traefik.http.middlewares.traefik-redirect.redirectscheme.scheme=https"
+        - "traefik.http.routers.traefik.middlewares=traefik-auth@file,traefik-redirect@file"
+      command:
+        - "--api.dashboard=true"
+        - "--providers.docker=true"
+        - "--providers.docker.exposedbydefault=false"
+        - "--providers.docker.network=web"
+        - "--providers.docker.endpoint=unix:///var/run/docker.sock"
+        - "--entrypoints.http.address=:80"
+        - "--entrypoints.https.address=:443"
+        - "--certificatesresolvers.myresolver.acme.email=your-email@example.com"
+        - "--certificatesresolvers.myresolver.acme.storage=/acme.json"
+        - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      networks:
+        - web
+
+    sonarqube :
+      image :  sonarqube:latest
+      container_name :  sonarqube
+      restart :  always
+      ports : 
+        -  9000:9000
+      volumes :
+        -  ./sonarqube/conf:/opt/sonarqube/conf
+        -  ./sonarqube/data:/opt/sonarqube/data
+        -  ./sonarqube/extensions:/opt/sonarqube/extensions
+        -  ./sonarqube/logs:/opt/sonarqube/logs
+        -  ./sonarqube/temp:/opt/sonarqube/temp
+      labels : 
+        -  "traefik.enable=true"
+        -  "traefik.http.routers.sonarqube.rule=Host(`localhost:6001`)"
+        -  "traefik.http.routers.sonarqube.entrypoints=websecure"
+        -  "traefik.http.routers.sonarqube.tls=true"
+        -  "traefik.http.routers.sonarqube.tls.certresolver=le"
+        -  "traefik.http.routers.sonarqube.service=sonarqube"
+        -  "traefik.http.services.sonarqube.loadbalancer.server.port=9000"
+      networks :
+        -  traefik
+
+    portainer : 
+      image :  portainer/portainer-ce:latest
+      container_name :  portainer
+      restart :  always
+      ports : 
+        -  9000:9000
+      volumes :
+        -  ./portainer/data:/data
+        -  /var/run/docker.sock:/var/run/docker.sock
+      labels : 
+        -  "traefik.enable=true"
+        -  "traefik.http.routers.portainer.rule=Host(`localhost:6002`)"
+        -  "traefik.http.routers.portainer.entrypoints=websecure"
+        -  "traefik.http.routers.portainer.tls=true"
+        -  "traefik.http.routers.portainer.tls.certresolver=le"
+        -  "traefik.http.routers.portainer.service=portainer"
+        -  "traefik.http.services.portainer.loadbalancer.server.port=9000"
+      environment:
+        - TZ=Europe/Paris
+        - ADMIN_PASSWORD=mysecretpassword
+      networks :
+        -  traefik
+
+  networks:
+    web:
+      external: true
