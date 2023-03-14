@@ -84,3 +84,26 @@ sonarqube :
       -  "traefik.http.services.sonarqube.loadbalancer.server.port=9000"
     networks :
       -  traefik
+
+  portainer : 
+    image :  portainer/portainer-ce:latest
+    container_name :  portainer
+    restart :  always
+    ports : 
+      -  9000:9000
+    volumes :
+      -  ./portainer/data:/data
+      -  /var/run/docker.sock:/var/run/docker.sock
+    labels : 
+      -  "traefik.enable=true"
+      -  "traefik.http.routers.portainer.rule=Host(`localhost:6002`)"
+      -  "traefik.http.routers.portainer.entrypoints=websecure"
+      -  "traefik.http.routers.portainer.tls=true"
+      -  "traefik.http.routers.portainer.tls.certresolver=le"
+      -  "traefik.http.routers.portainer.service=portainer"
+      -  "traefik.http.services.portainer.loadbalancer.server.port=9000"
+    environment:
+      - TZ=Europe/Paris
+      - ADMIN_PASSWORD=mysecretpassword
+    networks :
+      -  traefik
