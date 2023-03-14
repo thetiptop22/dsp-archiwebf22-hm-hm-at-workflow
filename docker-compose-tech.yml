@@ -1,0 +1,26 @@
+version: '3'
+
+    services : 
+  grafana :
+    image :  grafana/grafana:latest
+    container_name :  grafana
+    restart :  always
+    ports : 
+      -  3000:3000
+    volumes :
+      -  ./grafana:/var/lib/grafana
+      -  ./grafana/provisioning:/etc/grafana/provisioning
+      -  ./grafana/dashboards:/var/lib/grafana/dashboards
+      -  ./grafana/plugins:/var/lib/grafana/plugins
+      -  ./grafana/logs:/var/lib/grafana/logs
+      -  ./grafana/data:/var/lib/grafana/data
+    user : root
+    labels : 
+      -  "traefik.enable=true"
+      -  "traefik.http.routers.grafana.rule=Host(`localhost:6000`)"
+      -  "traefik.http.routers.grafana.entrypoints=websecure"
+      -  "traefik.http.routers.grafana.tls=true"
+      -  "traefik.http.routers.grafana.tls.certresolver=le"
+      -  "traefik.http.routers.grafana.service=grafana"
+      -  "traefik.http.services.grafana.loadbalancer.server.port=3000"
+    
