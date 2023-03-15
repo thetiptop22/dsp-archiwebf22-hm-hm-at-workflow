@@ -120,6 +120,27 @@ services:
     networks :
       -  traefik
 
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/data:/prometheus
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.prometheus.rule=Host(`prometheus.dsp-archiwebf22-hm-hm-at.fr`)
+      - traefik.http.routers.prometheus.entrypoints=websecure
+      - traefik.http.routers.prometheus.tls=true
+      - traefik.http.routers.prometheus.tls.certresolver=letsencrypt
+      - traefik.http.services.prometheus.loadbalancer.server.port=9090
+    networks:
+      - web
+      - traefik
+
+
 networks:
   web:
   traefik:
