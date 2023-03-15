@@ -9,10 +9,7 @@ services:
     environment:
       - SSH_AUTH_SOCK=/ssh-agent
     ports:
-      - 80:80 
-      - 443:443
-      - 3000:3000
-      - 3001:3001
+      - ${PORT_APP}:80 
     restart: always
   mongo:
     image: mongo:4.0-xenial
@@ -20,4 +17,4 @@ services:
     container_name: mongo
     hostname: mongo
     ports:
-      - "27017:27017"
+      - ${PORT_MONGO}:27017
