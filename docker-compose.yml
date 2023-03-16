@@ -42,6 +42,15 @@ services:
     volumes:
       - postgresql:/var/lib/postgresql
       - postgresql_data:/var/lib/postgresql/data
+ node-exporter:
+    image: prom/node-exporter
+    container_name: node-exporter
+    restart: always
+    ports:
+      - 9100:9100
+    command:
+      - "--web.listen-address=:9100"  
+
 volumes:
   sonarqube_conf:
   sonarqube_data:
