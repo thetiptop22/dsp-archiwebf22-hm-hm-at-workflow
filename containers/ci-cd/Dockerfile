@@ -1,10 +1,7 @@
-FROM node:16.13.0 
-COPY dsp-archiwebf22-hm-hm-at-workflow/containers/app /app
-VOLUME /app
-COPY dsp-archiwebf22-hm-hm-at-workflow/containers/ssh /root/.ssh
-RUN git config --global user.email "thetiptop.project@gmail.com"
-RUN git config --global user.name "The Tiptop Team"
+FROM thetiptop22/dsp-archiwebf22-hm-hm-at-app:latest
 ENV NODE_ENV=production
+WORKDIR /app
+RUN npm install -g npm@latest
 RUN npm i -g pm2
 ENTRYPOINT [ "pm2-runtime" ]
 CMD [ "start","pm2.json" ]
