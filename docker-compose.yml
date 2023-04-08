@@ -17,6 +17,7 @@ services:
       - "traefik.http.routers.redirs.rule=hostregexp(`{host:.+}`)"
       - "traefik.http.routers.redirs.entrypoints=web"
       - "traefik.http.routers.redirs.middlewares=redirect-to-https"
+
   mongo:
     image: mongo:4.0-xenial
     restart: always
@@ -89,7 +90,6 @@ services:
       - "traefik.http.routers.traefik-secure.middlewares=traefik-auth"
       - "traefik.http.routers.traefik-secure.tls=true"
       - "traefik.http.routers.traefik-secure.service=api@internal"
-
     ports:
       - "443:443"
       - "80:80"
@@ -97,25 +97,49 @@ services:
     volumes:
       - "./letsencrypt:/letsencrypt"
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      - prometheus
 
-  portainer:
-    image: 'portainer/portainer-ce:latest'
-    restart: always
-    container_name: portainer
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - portainer_data:/data
+  grafana:
+    image: grafana/grafana:7.5.7
     ports:
-      - "9443:9443"
+      - 3001:3000
+    restart: unless-stopped
+    volumes:
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - grafana-data:/var/lib/grafana
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.portainer.entrypoints=web"
-      - "traefik.http.routers.portainer.rule=Host(`portainer.dsp-archiwebf22-hm-hm-at.fr`)"
-      - "traefik.http.middlewares.portainer-https-redirect.redirectscheme.scheme=https"
-      - "traefik.http.routers.portainer.middlewares=portainer-https-redirect"
-      - "traefik.http.routers.portainer-secure.entrypoints=websecure"
-      - "traefik.http.routers.portainer-secure.rule=Host(`portainer.dsp-archiwebf22-hm-hm-at.fr`)"
-      - "traefik.http.routers.portainer-secure.tls=true"
+      - "traefik.http.routers.grafana.entrypoints=web"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.dsp-archiwebf22-hm-hm-at.fr`)"
+      - "traefik.http.middlewares.grafana-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.grafana.middlewares=grafana-https-redirect"
+      - "traefik.http.routers.grafana-secure.entrypoints=websecure"
+      - "traefik.http.routers.grafana-secure.rule=Host(`grafana.dsp-archiwebf22-hm-hm-at.fr`)"
+      - "traefik.http.routers.grafana-secure.tls=true"
+    
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    ports:
+      - 9090:9090    
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.entrypoints=web"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.dsp-archiwebf22-hm-hm-at.fr`)"
+      - "traefik.http.middlewares.prometheus-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.prometheus.middlewares=prometheus-https-redirect"
+      - "traefik.http.routers.prometheus-secure.entrypoints=websecure"
+      - "traefik.http.routers.prometheus-secure.rule=Host(`prometheus.dsp-archiwebf22-hm-hm-at.fr`)"
+      - "traefik.http.routers.prometheus-secure.tls=true"
+    
+
+    # Node Exporter
+  node-exporter:
+    image: prom/node-exporter
+    container_name: node-exporter
+    ports:
+      - 9100:9100
 
 volumes:
   sonarqube_conf:
@@ -126,8 +150,13 @@ volumes:
   mongo_data:
   mongo_configdb:
   portainer_data: {}
+  grafana-data:
+
 
 # Mettre traefik dans un réseau docker externe. 
 # Les autres conteneurs qui doivent être accessibles seront déclarés dans le même réseau
 networks:
   web:
+  prometheus:
+
+
