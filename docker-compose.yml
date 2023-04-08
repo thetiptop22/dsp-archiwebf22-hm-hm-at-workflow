@@ -10,9 +10,9 @@ services:
     restart: always
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.node-server.rule=Host(`dsp-archiwebf22-hm-hm-at.fr`)"
-      - "traefik.http.routers.node-server.entrypoints=websecure"
-      - "traefik.http.routers.node-server.tls.certresolver=myresolver"
+      - "traefik.http.routers.app.rule=Host(`dsp-archiwebf22-hm-hm-at.fr`)"
+      - "traefik.http.routers.app.entrypoints=websecure"
+      - "traefik.http.routers.app.tls.certresolver=myresolver"
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
       - "traefik.http.routers.redirs.rule=hostregexp(`{host:.+}`)"
       - "traefik.http.routers.redirs.entrypoints=web"
@@ -42,6 +42,16 @@ services:
       - sonarqube_conf:/opt/sonarqube/conf
       - sonarqube_data:/opt/sonarqube/data
       - sonarqube_extensions:/opt/sonarqube/extensions
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sonarqube.entrypoints=web"
+      - "traefik.http.routers.sonarqube.rule=Host(`sonarqube.dsp-archiwebf22-hm-hm-at.fr`)"
+      - "traefik.http.middlewares.sonarqube-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.sonarqube.middlewares=sonarqube-https-redirect"
+      - "traefik.http.routers.sonarqube-secure.entrypoints=websecure"
+      - "traefik.http.routers.sonarqube-secure.rule=Host(`sonarqube.dsp-archiwebf22-hm-hm-at.fr`)"
+      - "traefik.http.routers.sonarqube-secure.tls=true"
+
   db:
     image: postgres:latest
     container_name: db_postgres
@@ -52,7 +62,7 @@ services:
       - postgresql:/var/lib/postgresql
       - postgresql_data:/var/lib/postgresql/data
   traefik:
-    image: traefik:v2.4
+    image: traefik:v2.0
     container_name: "traefik"
     command:
       - "--api.insecure=true"
@@ -67,14 +77,19 @@ services:
       - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
       - "--certificatesresolvers.myresolver.acme.email=thetiptop.project@gmail.com"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+    labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.node-server.rule=Host(`traefik.dsp-archiwebf22-hm-hm-at.fr`)"
-      - "traefik.http.routers.node-server.entrypoints=websecure"
-      - "traefik.http.routers.node-server.tls.certresolver=myresolver"
-      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
-      - "traefik.http.routers.redirs.rule=hostregexp(`{host:.+}`)"
-      - "traefik.http.routers.redirs.entrypoints=web"
-      - "traefik.http.routers.redirs.middlewares=redirect-to-https"
+      - "traefik.http.routers.traefik.entrypoints=web"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.dsp-archiwebf22-hm-hm-at.fr`)"
+      - "traefik.http.middlewares.traefik-auth.basicauth.users=admin:{SHA}0DPiKuNIrrVmD8IUCuw1hQxNqZc="
+      - "traefik.http.middlewares.traefik-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.traefik.middlewares=traefik-https-redirect"
+      - "traefik.http.routers.traefik-secure.entrypoints=websecure"
+      - "traefik.http.routers.traefik-secure.rule=Host(`traefik.dsp-archiwebf22-hm-hm-at.fr`)"
+      - "traefik.http.routers.traefik-secure.middlewares=traefik-auth"
+      - "traefik.http.routers.traefik-secure.tls=true"
+      - "traefik.http.routers.traefik-secure.service=api@internal"
+
     ports:
       - "443:443"
       - "80:80"
@@ -83,8 +98,25 @@ services:
       - "./letsencrypt:/letsencrypt"
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
 
-# Mettre traefik dans un réseau docker externe. 
-# Les autres conteneurs qui doivent être accessibles seront déclarés dans le même réseau
+  portainer:
+    image: 'portainer/portainer-ce:latest'
+    restart: always
+    container_name: portainer
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    ports:
+      - "9443:9443"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.portainer.entrypoints=web"
+      - "traefik.http.routers.portainer.rule=Host(`portainer.dsp-archiwebf22-hm-hm-at.fr`)"
+      - "traefik.http.middlewares.portainer-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.portainer.middlewares=portainer-https-redirect"
+      - "traefik.http.routers.portainer-secure.entrypoints=websecure"
+      - "traefik.http.routers.portainer-secure.rule=Host(`portainer.dsp-archiwebf22-hm-hm-at.fr`)"
+      - "traefik.http.routers.portainer-secure.tls=true"
+
 volumes:
   sonarqube_conf:
   sonarqube_data:
@@ -93,6 +125,9 @@ volumes:
   postgresql_data:
   mongo_data:
   mongo_configdb:
+  portainer_data: {}
 
+# Mettre traefik dans un réseau docker externe. 
+# Les autres conteneurs qui doivent être accessibles seront déclarés dans le même réseau
 networks:
   web:
