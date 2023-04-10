@@ -5,18 +5,19 @@ services:
     container_name: app
     environment:
       - SSH_AUTH_SOCK=/ssh-agent
+      - DATADOG_HOST=datadog # used by the web app to initialize the Datadog library
     ports:
       - 3000:3000
     restart: always
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.app.rule=Host(`dsp-archiwebf22-hm-hm-at.fr`)"
-      - "traefik.http.routers.app.entrypoints=websecure"
-      - "traefik.http.routers.app.tls.certresolver=myresolver"
-      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
-      - "traefik.http.routers.redirs.rule=hostregexp(`{host:.+}`)"
-      - "traefik.http.routers.redirs.entrypoints=web"
-      - "traefik.http.routers.redirs.middlewares=redirect-to-https"
+    - "traefik.enable=true"
+    - "traefik.http.routers.app.rule=Host(`dsp-archiwebf22-hm-hm-at.fr`)"
+    - "traefik.http.routers.app.entrypoints=websecure"
+    - "traefik.http.routers.app.tls.certresolver=myresolver"
+    - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+    - "traefik.http.routers.redirs.rule=hostregexp(`{host:.+}`)"
+    - "traefik.http.routers.redirs.entrypoints=web"
+    - "traefik.http.routers.redirs.middlewares=redirect-to-https"
 
   mongo:
     image: mongo:4.0-xenial
@@ -78,6 +79,11 @@ services:
       - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
       - "--certificatesresolvers.myresolver.acme.email=thetiptop.project@gmail.com"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+      # enable prometheus metrics
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.entryPoint=metrics"
+      - "--metrics.prometheus.addEntryPointsLabels=true"
+      - "--metrics.prometheus.addServicesLabels=true"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.traefik.entrypoints=web"
@@ -90,15 +96,41 @@ services:
       - "traefik.http.routers.traefik-secure.middlewares=traefik-auth"
       - "traefik.http.routers.traefik-secure.tls=true"
       - "traefik.http.routers.traefik-secure.service=api@internal"
+      # port to expose metrics
+      - "traefik.http.services.metrics.loadbalancer.server.port=8082"    
     ports:
       - "443:443"
       - "80:80"
       - "8080:8080"
+      - "8082:8082"
     volumes:
       - "./letsencrypt:/letsencrypt"
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
-    networks:
-      - prometheus
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    ports:
+      - 9090:9090    
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.entrypoints=web"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.dsp-archiwebf22-hm-hm-at.fr`)"
+      - "traefik.http.middlewares.prometheus-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.prometheus.middlewares=prometheus-https-redirect"
+      - "traefik.http.routers.prometheus-secure.entrypoints=websecure"
+      - "traefik.http.routers.prometheus-secure.rule=Host(`prometheus.dsp-archiwebf22-hm-hm-at.fr`)"
+      - "traefik.http.routers.prometheus-secure.tls=true"
+    command:
+      # Prometheus metrics
+      ## Enable prometheus metrics
+      - '--web.enable-admin-api'
+      - '--web.enable-lifecycle'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
 
   grafana:
     image: grafana/grafana:7.5.7
@@ -117,29 +149,53 @@ services:
       - "traefik.http.routers.grafana-secure.entrypoints=websecure"
       - "traefik.http.routers.grafana-secure.rule=Host(`grafana.dsp-archiwebf22-hm-hm-at.fr`)"
       - "traefik.http.routers.grafana-secure.tls=true"
+    depends_on:
+      - prometheus
     
-  prometheus:
-    image: prom/prometheus
-    container_name: prometheus
-    ports:
-      - 9090:9090    
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.prometheus.entrypoints=web"
-      - "traefik.http.routers.prometheus.rule=Host(`prometheus.dsp-archiwebf22-hm-hm-at.fr`)"
-      - "traefik.http.middlewares.prometheus-https-redirect.redirectscheme.scheme=https"
-      - "traefik.http.routers.prometheus.middlewares=prometheus-https-redirect"
-      - "traefik.http.routers.prometheus-secure.entrypoints=websecure"
-      - "traefik.http.routers.prometheus-secure.rule=Host(`prometheus.dsp-archiwebf22-hm-hm-at.fr`)"
-      - "traefik.http.routers.prometheus-secure.tls=true"
-    
-
-    # Node Exporter
   node-exporter:
     image: prom/node-exporter
     container_name: node-exporter
     ports:
       - 9100:9100
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+
+  datadog:
+    container_name: datadog
+    image: gcr.io/datadoghq/agent:7
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+    environment:
+      DD_API_KEY: "09b600f561e89220545e95288a522eb8"
+      DD_SITE: "datadoghq.eu"
+    restart: unless-stopped
+    
+  portainer:
+    image: portainer/portainer-ce
+    container_name: portainer
+    command: -H unix:///var/run/docker.sock
+    restart: unless-stopped
+    ports:
+      - 9000:9000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.portainer.entrypoints=web"
+      - "traefik.http.routers.portainer.rule=Host(`portainer.dsp-archiwebf22-hm-hm-at.fr`)"
+      - "traefik.http.middlewares.portainer-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.portainer.middlewares=portainer-https-redirect"
+      - "traefik.http.routers.portainer-secure.entrypoints=websecure"
+      - "traefik.http.routers.portainer-secure.rule=Host(`portainer.dsp-archiwebf22-hm-hm-at.fr`)"
+      - "traefik.http.routers.portainer-secure.tls=true"
+    depends_on:
+      - traefik
+
 
 volumes:
   sonarqube_conf:
@@ -151,12 +207,3 @@ volumes:
   mongo_configdb:
   portainer_data: {}
   grafana-data:
-
-
-# Mettre traefik dans un réseau docker externe. 
-# Les autres conteneurs qui doivent être accessibles seront déclarés dans le même réseau
-networks:
-  web:
-  prometheus:
-
-
