@@ -1,11 +1,8 @@
 version: '3.3'
 services:
   app:
-    build: containers/ci-cd
+    build: ./app
     container_name: app
-    environment:
-      - SSH_AUTH_SOCK=/ssh-agent
-      - DATADOG_HOST=datadog # used by the web app to initialize the Datadog library
     ports:
       - 3000:3000
     restart: always
@@ -18,7 +15,6 @@ services:
     - "traefik.http.routers.redirs.rule=hostregexp(`{host:.+}`)"
     - "traefik.http.routers.redirs.entrypoints=web"
     - "traefik.http.routers.redirs.middlewares=redirect-to-https"
-
   mongo:
     image: mongo:4.0-xenial
     restart: always
@@ -37,7 +33,7 @@ services:
     environment:
       sonar.jdbc.url: jdbc:postgresql://db:5432/sonar
       sonar.jdbc.username: sonar
-      sonar.jdbc.password: sonar
+      sonar.jdbc.password: ${SONAR_PASSWORD}
     depends_on:
       - db
     volumes:
@@ -46,20 +42,16 @@ services:
       - sonarqube_extensions:/opt/sonarqube/extensions
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.sonarqube.entrypoints=web"
       - "traefik.http.routers.sonarqube.rule=Host(`sonarqube.dsp-archiwebf22-hm-hm-at.fr`)"
-      - "traefik.http.middlewares.sonarqube-https-redirect.redirectscheme.scheme=https"
-      - "traefik.http.routers.sonarqube.middlewares=sonarqube-https-redirect"
-      - "traefik.http.routers.sonarqube-secure.entrypoints=websecure"
-      - "traefik.http.routers.sonarqube-secure.rule=Host(`sonarqube.dsp-archiwebf22-hm-hm-at.fr`)"
-      - "traefik.http.routers.sonarqube-secure.tls=true"
+      - "traefik.http.routers.sonarqube.tls=true"
+      - "traefik.http.routers.sonarqube.tls.certresolver=myresolver"
 
   db:
     image: postgres:latest
     container_name: db_postgres
     environment:
       POSTGRES_USER: sonar
-      POSTGRES_PASSWORD: sonar
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgresql:/var/lib/postgresql
       - postgresql_data:/var/lib/postgresql/data
@@ -79,11 +71,11 @@ services:
       - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
       - "--certificatesresolvers.myresolver.acme.email=thetiptop.project@gmail.com"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
-      # enable prometheus metrics
-      - "--metrics.prometheus=true"
-      - "--metrics.prometheus.entryPoint=metrics"
-      - "--metrics.prometheus.addEntryPointsLabels=true"
-      - "--metrics.prometheus.addServicesLabels=true"
+      # enable datadog metrics
+      - "--metrics.datadog=true"
+      - "--metrics.datadog.address=datadog:8125"
+      - "--metrics.datadog.pushinterval=10s"
+
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.traefik.entrypoints=web"
@@ -96,8 +88,7 @@ services:
       - "traefik.http.routers.traefik-secure.middlewares=traefik-auth"
       - "traefik.http.routers.traefik-secure.tls=true"
       - "traefik.http.routers.traefik-secure.service=api@internal"
-      # port to expose metrics
-      - "traefik.http.services.metrics.loadbalancer.server.port=8082"    
+      - "traefik.http.services.metrics.loadbalancer.server.port=8082"
     ports:
       - "443:443"
       - "80:80"
@@ -114,15 +105,10 @@ services:
       - 9090:9090    
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.prometheus.entrypoints=web"
       - "traefik.http.routers.prometheus.rule=Host(`prometheus.dsp-archiwebf22-hm-hm-at.fr`)"
-      - "traefik.http.middlewares.prometheus-https-redirect.redirectscheme.scheme=https"
-      - "traefik.http.routers.prometheus.middlewares=prometheus-https-redirect"
-      - "traefik.http.routers.prometheus-secure.entrypoints=websecure"
-      - "traefik.http.routers.prometheus-secure.rule=Host(`prometheus.dsp-archiwebf22-hm-hm-at.fr`)"
-      - "traefik.http.routers.prometheus-secure.tls=true"
+      - "traefik.http.routers.prometheus.tls=true"
+      - "traefik.http.routers.prometheus.tls.certresolver=myresolver"
     command:
-      # Prometheus metrics
       ## Enable prometheus metrics
       - '--web.enable-admin-api'
       - '--web.enable-lifecycle'
@@ -142,13 +128,9 @@ services:
       - grafana-data:/var/lib/grafana
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.grafana.entrypoints=web"
       - "traefik.http.routers.grafana.rule=Host(`grafana.dsp-archiwebf22-hm-hm-at.fr`)"
-      - "traefik.http.middlewares.grafana-https-redirect.redirectscheme.scheme=https"
-      - "traefik.http.routers.grafana.middlewares=grafana-https-redirect"
-      - "traefik.http.routers.grafana-secure.entrypoints=websecure"
-      - "traefik.http.routers.grafana-secure.rule=Host(`grafana.dsp-archiwebf22-hm-hm-at.fr`)"
-      - "traefik.http.routers.grafana-secure.tls=true"
+      - "traefik.http.routers.grafana.tls=true"
+      - "traefik.http.routers.grafana.tls.certresolver=myresolver"
     depends_on:
       - prometheus
     
@@ -170,7 +152,7 @@ services:
       - /proc/:/host/proc/:ro
       - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
     environment:
-      DD_API_KEY: "09b600f561e89220545e95288a522eb8"
+      DD_API_KEY: ${DATADOG_API_KEY}
       DD_SITE: "datadoghq.eu"
     restart: unless-stopped
     
@@ -186,16 +168,11 @@ services:
       - portainer_data:/data
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.portainer.entrypoints=web"
       - "traefik.http.routers.portainer.rule=Host(`portainer.dsp-archiwebf22-hm-hm-at.fr`)"
-      - "traefik.http.middlewares.portainer-https-redirect.redirectscheme.scheme=https"
-      - "traefik.http.routers.portainer.middlewares=portainer-https-redirect"
-      - "traefik.http.routers.portainer-secure.entrypoints=websecure"
-      - "traefik.http.routers.portainer-secure.rule=Host(`portainer.dsp-archiwebf22-hm-hm-at.fr`)"
-      - "traefik.http.routers.portainer-secure.tls=true"
+      - "traefik.http.routers.portainer.tls=true"
+      - "traefik.http.routers.portainer.tls.certresolver=myresolver"
     depends_on:
       - traefik
-
 
 volumes:
   sonarqube_conf:
