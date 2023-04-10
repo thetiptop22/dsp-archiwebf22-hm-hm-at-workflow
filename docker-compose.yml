@@ -1,14 +1,20 @@
 version: '3.3'
 services:
   app:
-    build: containers/ci-cd
+    build: ./app
     container_name: app
-    environment:
-      - SSH_AUTH_SOCK=/ssh-agent
     ports:
-      - ${PORT_APP}:80
       - 3000:3000
     restart: always
+    labels:
+    - "traefik.enable=true"
+    - "traefik.http.routers.app.rule=Host(`dsp-archiwebf22-hm-hm-at.fr`)"
+    - "traefik.http.routers.app.entrypoints=websecure"
+    - "traefik.http.routers.app.tls.certresolver=myresolver"
+    - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+    - "traefik.http.routers.redirs.rule=hostregexp(`{host:.+}`)"
+    - "traefik.http.routers.redirs.entrypoints=web"
+    - "traefik.http.routers.redirs.middlewares=redirect-to-https"
   mongo:
     image: mongo:4.0-xenial
     restart: always
@@ -19,6 +25,162 @@ services:
     volumes:
       - mongo_data:/data/db
       - mongo_configdb:/data/configdb
+  sonarqube:
+    image: sonarqube:latest
+    container_name: sonarqube
+    ports:
+      - "9002:9000"
+    environment:
+      sonar.jdbc.url: jdbc:postgresql://db:5432/sonar
+      sonar.jdbc.username: sonar
+      sonar.jdbc.password: ${SONAR_PASSWORD}
+    depends_on:
+      - db
+    volumes:
+      - sonarqube_conf:/opt/sonarqube/conf
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sonarqube.rule=Host(`sonarqube.dsp-archiwebf22-hm-hm-at.fr`)"
+      - "traefik.http.routers.sonarqube.tls=true"
+      - "traefik.http.routers.sonarqube.tls.certresolver=myresolver"
+
+  db:
+    image: postgres:latest
+    container_name: db_postgres
+    environment:
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgresql:/var/lib/postgresql
+      - postgresql_data:/var/lib/postgresql/data
+  traefik:
+    image: traefik:v2.0
+    container_name: "traefik"
+    command:
+      - "--api.insecure=true"
+      - "--api.dashboard=true"
+      - "--api.debug=true"
+      - "--providers.docker=true"
+      - "--log.LEVEL=DEBUG"
+      - "--entryPoints.web.address=:80"
+      - "--entryPoints.websecure.address=:443"
+      - "--providers.docker.exposedbydefault=false"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge=true"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.myresolver.acme.email=thetiptop.project@gmail.com"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+      # enable datadog metrics
+      - "--metrics.datadog=true"
+      - "--metrics.datadog.address=datadog:8125"
+      - "--metrics.datadog.pushinterval=10s"
+
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.entrypoints=web"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.dsp-archiwebf22-hm-hm-at.fr`)"
+      - "traefik.http.middlewares.traefik-auth.basicauth.users=admin:{SHA}0DPiKuNIrrVmD8IUCuw1hQxNqZc="
+      - "traefik.http.middlewares.traefik-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.traefik.middlewares=traefik-https-redirect"
+      - "traefik.http.routers.traefik-secure.entrypoints=websecure"
+      - "traefik.http.routers.traefik-secure.rule=Host(`traefik.dsp-archiwebf22-hm-hm-at.fr`)"
+      - "traefik.http.routers.traefik-secure.middlewares=traefik-auth"
+      - "traefik.http.routers.traefik-secure.tls=true"
+      - "traefik.http.routers.traefik-secure.service=api@internal"
+      - "traefik.http.services.metrics.loadbalancer.server.port=8082"
+    ports:
+      - "443:443"
+      - "80:80"
+      - "8080:8080"
+      - "8082:8082"
+    volumes:
+      - "./letsencrypt:/letsencrypt"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    ports:
+      - 9090:9090    
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.dsp-archiwebf22-hm-hm-at.fr`)"
+      - "traefik.http.routers.prometheus.tls=true"
+      - "traefik.http.routers.prometheus.tls.certresolver=myresolver"
+    command:
+      ## Enable prometheus metrics
+      - '--web.enable-admin-api'
+      - '--web.enable-lifecycle'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+
+  grafana:
+    image: grafana/grafana:7.5.7
+    ports:
+      - 3001:3000
+    restart: unless-stopped
+    volumes:
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - grafana-data:/var/lib/grafana
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.dsp-archiwebf22-hm-hm-at.fr`)"
+      - "traefik.http.routers.grafana.tls=true"
+      - "traefik.http.routers.grafana.tls.certresolver=myresolver"
+    depends_on:
+      - prometheus
+    
+  node-exporter:
+    image: prom/node-exporter
+    container_name: node-exporter
+    ports:
+      - 9100:9100
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+
+  datadog:
+    container_name: datadog
+    image: gcr.io/datadoghq/agent:7
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+    environment:
+      DD_API_KEY: ${DATADOG_API_KEY}
+      DD_SITE: "datadoghq.eu"
+    restart: unless-stopped
+    
+  portainer:
+    image: portainer/portainer-ce
+    container_name: portainer
+    command: -H unix:///var/run/docker.sock
+    restart: unless-stopped
+    ports:
+      - 9000:9000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.portainer.rule=Host(`portainer.dsp-archiwebf22-hm-hm-at.fr`)"
+      - "traefik.http.routers.portainer.tls=true"
+      - "traefik.http.routers.portainer.tls.certresolver=myresolver"
+    depends_on:
+      - traefik
+
 volumes:
+  sonarqube_conf:
+  sonarqube_data:
+  sonarqube_extensions:
+  postgresql:
+  postgresql_data:
   mongo_data:
   mongo_configdb:
+  portainer_data: {}
+  grafana-data:

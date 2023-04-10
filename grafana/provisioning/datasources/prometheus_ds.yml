@@ -1,0 +1,9 @@
+datasources:
+- name: Prometheus
+  access: proxy
+  type: prometheus
+  url: http://prometheus:9090
+  isDefault: true
+
+static_configs:
+  - targets ['traefik:8080','node-exporter:9100']
