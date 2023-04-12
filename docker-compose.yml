@@ -13,7 +13,7 @@ services:
     - "traefik.http.routers.app.tls.certresolver=myresolver"
     - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
     - "traefik.http.routers.redirs.rule=hostregexp(`{host:.+}`)"
-    - "traefik.http.routers.redirs.entrypoints=web"
+    - "traefik.http.routers.redirs.entrypoints=web" 
     - "traefik.http.routers.redirs.middlewares=redirect-to-https"
   mongo:
     image: mongo:4.0-xenial
