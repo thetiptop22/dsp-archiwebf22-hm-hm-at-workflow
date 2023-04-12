@@ -1,15 +1,26 @@
-pour lancer les containers : 
+pour lancer les containers en supprimant le cache des images: 
 ```
-sh start.sh
+sh restart.sh
 ```
 
 pour recharger les containers : 
 ```
 sh reload.sh
 ```
-\n
 
-Idenifiants Git : \n \n
+pour lancer les containers en preprod: 
+```
+sh restart.preprod.sh
+```
 
-thetiptop.project@gmail.com \n
+pour recharger les containers en preprod: 
+```
+sh reload.preprod.sh
+```
+
+
+
+Idenifiants Git :
+
+thetiptop.project@gmail.com 
 thetiptop.project2023
