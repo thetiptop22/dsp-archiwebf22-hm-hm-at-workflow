@@ -1,3 +1,2 @@
-containers/ssh
 data
-.env
+# .env
