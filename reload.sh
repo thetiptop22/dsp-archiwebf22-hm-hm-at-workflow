@@ -1,4 +1,4 @@
 clear
-docker-compose down --remove-orphans;
+docker-compose down;
 sudo docker-compose up -d --build;
 
