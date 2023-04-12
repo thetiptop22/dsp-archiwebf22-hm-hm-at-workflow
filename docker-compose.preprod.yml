@@ -1,0 +1,27 @@
+version: '3.3'
+services:
+  preprod:
+    build: ./app-preprod
+    container_name: preprod
+    ports:
+      - 5000:3000
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.preprod.rule=Host(`preprod.dsp-archiwebf22-hm-hm-at.fr`)"
+      - "traefik.http.routers.preprod.tls=true"
+      - "traefik.http.routers.preprod.tls.certresolver=myresolver"
+  mongopreprod:
+    image: mongo:4.0-xenial
+    restart: always
+    container_name: mongopreprod
+    hostname: mongopreprod
+    ports:
+      - 27018:27017
+    volumes:
+      - mongo_data_preprod:/data/db
+      - mongo_configdb_preprod:/data/configdb
+
+volumes:
+  mongo_data_preprod:
+  mongo_configdb_preprod:
